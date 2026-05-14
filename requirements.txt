@@ -1,0 +1,17 @@
+# ── Core ────────────────────────────────────────────────
+pyyaml>=6.0
+python-dotenv>=1.0          # .env 파일로 비밀값 분리
+
+# ── HTTP / 알림 ──────────────────────────────────────────
+requests>=2.31              # ntfy / pushover / 일반 웹페이지 조회
+
+# ── 일반 웹페이지 변경 감지 ────────────────────────────
+beautifulsoup4>=4.12        # HTML 파싱
+
+# ── 인증 필요한 동적 페이지 (무주산골 dtidea.kr) ───────
+playwright>=1.45            # 브라우저 자동화
+# playwright_stealth는 선택 — 봇 탐지 회피용. 비활성 권장(약관 회색지대).
+# playwright-stealth>=2.0
+
+# ── 텔레그램 봇 (선택 — config에서 enabled: true일 때만) ─
+# python-telegram-bot[job-queue]>=22.0

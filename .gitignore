@@ -1,0 +1,44 @@
+# ── 절대 GitHub에 올리면 안 되는 파일 ─────────────────
+.env                          # 개인정보·비밀번호·토큰
+config.yaml                   # 본인 설정 (config.example.yaml만 공개)
+data/state/*.json             # 모니터링 상태 (해시·세션 캐시)
+data/state/cookies/           # Playwright 세션 쿠키
+data/screenshots/             # 디버깅 스크린샷
+
+# ── Python ─────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+
+# ── Virtual env ────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Playwright ─────────────────────────────────────────
+.playwright/
+playwright-report/
+
+# ── IDE / OS ───────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ── Logs ───────────────────────────────────────────────
+*.log
+logs/
+
+# ── pytest / mypy 등 ───────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/

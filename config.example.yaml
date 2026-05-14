@@ -1,0 +1,116 @@
+# ============================================================
+#  ticket-notifier — 설정 예시
+# ============================================================
+#  사용법:
+#   1) cp config.example.yaml config.yaml
+#   2) config.yaml 을 본인 환경에 맞게 수정
+#   3) 비밀값(이름/전화/비밀번호/토큰)은 절대 여기 적지 말고 .env 사용
+#      → ${VAR_NAME} 패턴으로 .env 값을 가져옴
+# ============================================================
+
+# ── 알림 채널 ─────────────────────────────────────────────
+notifiers:
+
+  ntfy:
+    enabled: true                      # 메인 채널 (무료, 가입 불필요)
+    topic: "${NTFY_TOPIC}"             # .env 에서 로드
+    server: "${NTFY_SERVER:https://ntfy.sh}"
+    tags: ["ticket", "loudspeaker"]
+
+  pushover:
+    enabled: false                     # 새벽 알람용 — 설치 후 true 로 변경
+    user_key: "${PUSHOVER_USER_KEY}"
+    app_token: "${PUSHOVER_APP_TOKEN}"
+    urgent_sound: "siren"              # iOS 방해 금지 무력화 사운드
+    normal_sound: "magic"
+    retry_seconds: 60                  # Emergency 알림 재전송 간격
+    expire_seconds: 1800               # Emergency 알림 만료 (30분)
+
+  telegram:
+    enabled: false                     # 양방향 봇 필요시 true
+    bot_token: "${TELEGRAM_BOT_TOKEN}"
+    chat_ids: "${TELEGRAM_CHAT_IDS}"
+
+# ── 모니터링 대상 ─────────────────────────────────────────
+watchers:
+
+  # ─────────── 무주산골영화제 숙박패키지 ───────────
+  - name: "무주산골 숙박패키지"
+    type: "mjff_lodging"
+    enabled: true
+    interval_minutes: 5                 # 평시 간격 (밤에는 scheduler가 자동 조정)
+    cooldown_minutes: 30                # 같은 알림 30분 내 재전송 금지
+    settings:
+      target_url: "https://ticket.dtidea.kr/mjff/html/03/04.php"
+      booking_button_text: "예매하기"
+      headless: true                    # 디버깅 시 false 로 변경
+      use_stealth: false                # 봇 탐지 회피 라이브러리 (약관 회색지대)
+      session_name: "mjff-lodging"
+      min_pause_ms: 1500
+      max_pause_ms: 3500
+      targets:
+        - name: "가족호텔(골드)"
+          available_keyword: "예약 가능"
+          status_cell_index: 4
+        # 다른 객실도 한 번에 감시하려면 추가
+        # - name: "가족호텔(실버)"
+        #   available_keyword: "예약 가능"
+        #   status_cell_index: 4
+
+  # ─────────── 무주산골영화제 실내상영 06/06 ───────────
+  - name: "무주산골 실내상영 6/6"
+    type: "mjff_screening"
+    enabled: true
+    interval_minutes: 5
+    cooldown_minutes: 15
+    settings:
+      date: "2026-06-06"
+      headless: true
+      session_name: "mjff-screening-0606"
+      sold_out_keyword: "온라인매진"
+      available_keyword: "예매하기"
+      targets:
+        - movie: "별과 모래"
+          time: "10:30"
+        - movie: "어떻게 해야 했을까?"
+          time: "14:00"
+        - movie: "후광"
+          time: "13:30"
+        - movie: "산양들"
+          time: "16:30"
+        - movie: "아코디언 도어"
+          time: "17:30"
+
+  # ─────────── 무주산골영화제 실내상영 06/07 ───────────
+  - name: "무주산골 실내상영 6/7"
+    type: "mjff_screening"
+    enabled: true
+    interval_minutes: 5
+    cooldown_minutes: 15
+    settings:
+      date: "2026-06-07"
+      headless: true
+      session_name: "mjff-screening-0607"
+      sold_out_keyword: "온라인매진"
+      available_keyword: "예매하기"
+      targets:
+        - movie: "리프라이즈"
+          time: "14:00"
+
+  # ─────────── (선택) 무주산골 공지사항 ───────────────
+  # - name: "무주산골 공지"
+  #   type: "webpage"
+  #   enabled: false
+  #   interval_minutes: 30
+  #   cooldown_minutes: 60
+  #   settings:
+  #     url: "https://mjff.or.kr/kor/artyboard/mboard.asp?strBoardID=KZND_Q154"
+  #     selector: "a.brd_tit"
+  #     encoding: "euc-kr"
+  #     keywords: ["예매", "신청"]
+
+# ── 고급 설정 ─────────────────────────────────────────────
+advanced:
+  state_dir: "./data/state"
+  log_level: "INFO"
+  cooldown_minutes: 30                  # watcher 별 cooldown_minutes 가 우선
