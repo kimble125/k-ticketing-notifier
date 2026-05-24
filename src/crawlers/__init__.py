@@ -4,7 +4,6 @@ from typing import Any
 
 
 def get_crawler(watcher: dict) -> Any:
-    """watcher type 에 맞는 크롤러 인스턴스 반환"""
     wtype = watcher.get("type", "webpage")
     settings = watcher.get("settings", {})
 
@@ -14,8 +13,17 @@ def get_crawler(watcher: dict) -> Any:
     if wtype == "mjff_screening":
         from .mjff_screening import MJFFScreeningCrawler
         return MJFFScreeningCrawler(settings)
+    if wtype == "mjff_stadium":
+        from .mjff_stadium import MJFFStadiumCrawler
+        return MJFFStadiumCrawler(settings)
+    if wtype == "firefly":
+        from .firefly import FireflyCrawler
+        return FireflyCrawler(settings)
     if wtype == "webpage":
         from .webpage import WebpageCrawler
         return WebpageCrawler(settings)
 
-    raise ValueError(f"알 수 없는 watcher type: {wtype}")
+    raise ValueError(
+        f"알 수 없는 watcher type: {wtype}. "
+        f"지원되는 type: mjff_lodging, mjff_screening, mjff_stadium, firefly, webpage"
+    )

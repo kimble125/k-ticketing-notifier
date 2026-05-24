@@ -1,17 +1,5 @@
 # ============================================================
-#  GitHub Actions — 5분마다 자동 모니터링
-# ============================================================
-#  GitHub 가 무료로 24시간 호스팅 + 5분 cron 실행
-#  → 본인 컴퓨터 꺼져 있어도 동작
-# ============================================================
-#  사전 준비:
-#   1) GitHub 레포 → Settings → Secrets and variables → Actions
-#   2) New repository secret 으로 아래 값들 등록:
-#        MJFF_NAME, MJFF_PHONE, MJFF_PASS
-#        NTFY_TOPIC
-#        (선택) PUSHOVER_USER_KEY, PUSHOVER_APP_TOKEN
-#        (선택) TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_IDS
-#   3) Actions 탭에서 이 워크플로 enable
+#  GitHub Actions — 5분마다 자동 모니터링 + 수동 테스트
 # ============================================================
 
 name: ticket-notifier
@@ -20,20 +8,26 @@ on:
   schedule:
     # 매 5분마다 실행. cron 은 UTC 기준이지만 5분 간격이라 시간대 무관
     - cron: "*/5 * * * *"
-  workflow_dispatch:  # 수동 실행 버튼
 
-# 동시 실행 방지 (앞 작업 끝나기 전엔 다음 cron 트리거 무시)
+  # 수동 실행 (Actions 탭 → Run workflow 버튼)
+  workflow_dispatch:
+    inputs:
+      force_test_alert:
+        description: "테스트 알림만 보내고 끝낼지 (사이트 접속 X). ntfy 채널 검증용."
+        type: boolean
+        default: false
+
 concurrency:
   group: ticket-notifier
   cancel-in-progress: false
 
 permissions:
-  contents: write       # state 파일 커밋 권한
+  contents: write
 
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 8  # 5분 cron 충돌 방지
+    timeout-minutes: 8
 
     steps:
       - name: Checkout
@@ -49,12 +43,27 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          # Playwright 브라우저 (chromium 만)
           python -m playwright install --with-deps chromium
 
-      - name: Run check
+      # ─── 테스트 알림 모드 ─────────────────────────────────
+      # workflow_dispatch 로 force_test_alert=true 체크 시 동작
+      - name: Run test-alert
+        if: ${{ inputs.force_test_alert == true }}
         env:
-          # .env 대신 GitHub Secrets 사용
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
+          PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+          PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
+          CONFIG_PATH: config.example.yaml
+        run: |
+          python main.py --test-alert
+
+      # ─── 일반 체크 모드 (cron 또는 수동 일반 실행) ──────────
+      - name: Run check
+        if: ${{ inputs.force_test_alert != true }}
+        env:
           MJFF_NAME: ${{ secrets.MJFF_NAME }}
           MJFF_PHONE: ${{ secrets.MJFF_PHONE }}
           MJFF_PASS: ${{ secrets.MJFF_PASS }}
@@ -64,14 +73,12 @@ jobs:
           PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
-          # config.yaml 이 레포에 없으므로 config.example.yaml 사용
           CONFIG_PATH: config.example.yaml
         run: |
           python main.py --check
 
-      - name: Persist state (변경 있을 때만)
-        # 상태 파일을 같은 레포에 커밋해서 다음 실행에 이어가게 함
-        # (해시·세션 캐시·last_check 등)
+      - name: Persist state
+        if: ${{ inputs.force_test_alert != true }}
         run: |
           if [[ -n "$(git status --porcelain data/state)" ]]; then
             git config user.name  "github-actions[bot]"
