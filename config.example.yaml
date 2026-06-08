@@ -1,5 +1,5 @@
 # ============================================================
-#  ticket-notifier — 설정 예시
+#  k-ticketing-notifier — 설정 예시 (v4: 서울야외도서관 추가)
 # ============================================================
 
 notifiers:
@@ -24,13 +24,12 @@ notifiers:
 watchers:
 
   # ============================================================
-  #  무주산골영화제 dtidea.kr
+  #  무주산골영화제 (2026.06 종료 — 모두 비활성)
+  #  새 시즌 시작 시 enabled: true 로 재활성
   # ============================================================
-
-  # 1) 숙박패키지 6/6 가족호텔(골드) — 일정 선택 흐름
   - name: "무주산골 숙박 6/6 가족호텔(골드)"
     type: "mjff_lodging"
-    enabled: true
+    enabled: false                                # ← 비활성
     interval_minutes: 5
     cooldown_minutes: 15
     settings:
@@ -41,13 +40,11 @@ watchers:
       targets:
         - name: "가족호텔(골드)"
           available_keyword: "예약 가능"
-          unavailable_keyword: "예약 불가"
           status_cell_index: 4
 
-  # 2) 등나무운동장 1일 입장권 6/6
   - name: "무주등나무운동장 6/6"
     type: "mjff_stadium"
-    enabled: true
+    enabled: false                                # ← 비활성
     interval_minutes: 5
     cooldown_minutes: 15
     settings:
@@ -59,10 +56,9 @@ watchers:
           sold_out_keyword: "온라인매진"
           available_keyword: "예매하기"
 
-  # 3) 실내상영 06/06 (5편)
   - name: "무주산골 실내상영 6/6"
     type: "mjff_screening"
-    enabled: true
+    enabled: false                                # ← 비활성
     interval_minutes: 5
     cooldown_minutes: 15
     settings:
@@ -83,28 +79,9 @@ watchers:
         - movie: "아코디언 도어"
           time: "17:30"
 
-  # 4) 실내상영 06/07 (1편)
-  - name: "무주산골 실내상영 6/7"
-    type: "mjff_screening"
-    enabled: true
-    interval_minutes: 5
-    cooldown_minutes: 15
-    settings:
-      date: "2026-06-07"
-      headless: true
-      session_name: "mjff-screening-0607"
-      sold_out_keyword: "온라인매진"
-      available_keyword: "예매하기"
-      targets:
-        - movie: "리프라이즈"
-          time: "14:00"
-
-  # ============================================================
-  #  운문산 반딧불이 (firefly.or.kr) — 네이버 로그인 필요
-  # ============================================================
   - name: "운문산 반딧불이 6/6"
     type: "firefly"
-    enabled: true
+    enabled: false                                # ← 비활성 (필요 시 재활성)
     interval_minutes: 10
     cooldown_minutes: 30
     settings:
@@ -112,23 +89,33 @@ watchers:
       headless: true
       session_name: "firefly-naver"
       targets:
-        - day_label: "06"          # 6월 캘린더의 06일
+        - day_label: "06"
           weekday_hint: "토"
           sold_out_keyword: "예약마감"
           available_keyword: "예약가능"
 
   # ============================================================
-  #  (선택) 무주산골 공지사항 — 인증 불필요
+  #  서울야외도서관 힙독클럽 — 신규 (v4 주력)
+  #  ⚠️ HTML 구조 파악 후 실제 셀렉터 보강 필요 (새 채팅에서)
   # ============================================================
-  # - name: "무주산골 공지"
-  #   type: "webpage"
-  #   enabled: false
-  #   interval_minutes: 30
-  #   settings:
-  #     url: "https://mjff.or.kr/kor/artyboard/mboard.asp?strBoardID=KZND_Q154"
-  #     selector: "a.brd_tit"
-  #     encoding: "euc-kr"
-  #     keywords: ["예매", "신청"]
+  - name: "서울야외도서관 힙독클럽 5개 프로그램"
+    type: "seoul_outdoor_library"
+    enabled: true
+    interval_minutes: 5
+    cooldown_minutes: 10
+    settings:
+      target_url: "https://seouloutdoorlibrary.kr/user/program/selectPageListProgram.do?area_id=hipdok&flag=program_list"
+      detection_mode: "status_change"            # status_change 또는 count_change
+      use_playwright: true                         # SPA 가능성 ↑ 일단 true. SSR 확인되면 false 로
+      headless: true
+      full_keyword: "정원 마감"
+      open_keyword: "신청중"
+      targets:
+        - name: "노마드리딩 ③ : 커피향 바다독서 in 강릉"
+        - name: "[리딩몹] 최애책 재독단 #4. 소장하고 싶은 그 책"
+        - name: "[리딩몹] 챕터 퍼즐 리딩 #1. 기록하기로 했습니다."
+        - name: "[힙독클럽 X 서울도서관] 작가힙톡_하주원 작가 : 운동하면 좋은 걸 누가 모르냐고요"
+        - name: "[힙독클럽 X 서울도서관] 작가힙톡_하지현 작가 : 스트레스는 나를 어떻게 바꾸는가"
 
 advanced:
   state_dir: "./data/state"
@@ -140,5 +127,5 @@ heartbeat:
   hour: 12
   minute: 0
   priority: "low"
-  title: "🟢 ticket-notifier 살아있어요"
+  title: "🟢 k-ticketing-notifier 살아있어요"
   message: "오늘 모니터링 정상 가동 중입니다."
