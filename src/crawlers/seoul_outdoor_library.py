@@ -93,6 +93,14 @@ class SeoulOutdoorLibraryCrawler:
         self.alert_triggers = list(settings.get("alert_triggers", ["status_open", "spot_freed"]))
         self.open_statuses = list(settings.get("open_statuses", DEFAULT_OPEN_STATUSES))
         self.closed_statuses = list(settings.get("closed_statuses", DEFAULT_CLOSED_STATUSES))
+        # ── 사전 알림(리드타임 리마인더) + 신규 프로그램 감지 ──
+        self.reminders_enabled = bool(settings.get("reminders_enabled", True))
+        self.detect_new_programs = bool(settings.get("detect_new_programs", True))
+        # 신청 시작 몇 분 전에 알릴지 (기본 1일=1440 / 1시간=60 / 10분)
+        self.reminder_offsets_minutes = list(settings.get("reminder_offsets_minutes", [1440, 60, 10]))
+        # 리마인더 대상: "all"(모든 힙독클럽 프로그램) 또는 "targets"(내 지정 목록만)
+        self.reminder_scope = settings.get("reminder_scope", "all")
+        self.state_dir = settings.get("state_dir", "./data/state")
 
     # ──────────────────────────────────────────────────────────
     #  엔트리포인트
@@ -124,10 +132,15 @@ class SeoulOutdoorLibraryCrawler:
             else:
                 logger.warning(f"[seoul_lib] ✗ 대상 미발견: '{it['name'][:40]}'")
 
+        extra = self._compute_extra_alerts(found, items)
+        if extra:
+            logger.info(f"[seoul_lib] 추가 알림 {len(extra)}건 (신규/사전 리마인더)")
+
         return {
             "items": items,
             "raw_data": self._raw_snapshot(items),
             "click_url": self.target_url,
+            "extra_alerts": extra,
         }
 
     # ──────────────────────────────────────────────────────────
@@ -324,7 +337,8 @@ class SeoulOutdoorLibraryCrawler:
         items: list[dict] = []
         for target in self.targets:
             name = target["name"]
-            nt = _norm(name)
+            # 'match' 가 있으면 그 문자열로 매칭(한자·긴 제목 회피용). 없으면 name 사용.
+            nt = _norm(target.get("match") or name)
             match = next((r for r in records if nt and (nt in _norm(r["name_raw"]) or _norm(r["name_raw"]) in nt)), None)
             if match:
                 cur, tot = match["current"], match["total"]
@@ -356,6 +370,106 @@ class SeoulOutdoorLibraryCrawler:
             else:
                 parts.append(f"{it['name']}|MISSING")
         return "\n".join(parts)
+
+    # ──────────────────────────────────────────────────────────
+    #  추가 알림: 신규 프로그램 감지 + 신청 시작 사전 리마인더
+    # ──────────────────────────────────────────────────────────
+    def _compute_extra_alerts(self, found: dict, items: list[dict]) -> list[dict]:
+        if not (self.reminders_enabled or self.detect_new_programs):
+            return []
+        from datetime import datetime, timedelta
+        try:
+            from ..state import StateManager
+        except Exception:
+            return []
+        sm = StateManager(self.state_dir)
+        now = datetime.now()
+        alerts: list[dict] = []
+
+        # 리마인더 대상 레코드
+        if self.reminder_scope == "targets":
+            wanted = {_norm(it["matched_title"]) for it in items if it.get("found")}
+            recs = [r for r in found.values() if _norm(r["name_raw"]) in wanted]
+        else:
+            recs = list(found.values())
+
+        # (1) 신규 프로그램 감지 (첫 실행은 베이스라인만 저장 → 폭주 방지)
+        if self.detect_new_programs:
+            seen = set(sm.get("_hipdok_seen").get("titles", []))
+            current = {_norm(r["name_raw"]) for r in found.values()}
+            if not seen:
+                sm.save("_hipdok_seen", {"titles": sorted(current)})
+            else:
+                new_keys = current - seen
+                for r in found.values():
+                    if _norm(r["name_raw"]) in new_keys:
+                        alerts.append({
+                            "title": "🆕 힙독클럽 새 프로그램",
+                            "message": self._new_prog_message(r),
+                            "priority": "high",
+                        })
+                if new_keys:
+                    sm.save("_hipdok_seen", {"titles": sorted(seen | current)})
+
+        # (2) 신청 시작 사전 리마인더 (각 임계값 1회만)
+        if self.reminders_enabled:
+            for r in recs:
+                start = self._parse_start_dt(r.get("period"))
+                if not start or now >= start:
+                    continue
+                for off in self.reminder_offsets_minutes:
+                    fire_from = start - timedelta(minutes=off)
+                    if not (fire_from <= now < start):
+                        continue
+                    key = f"_remind::{_norm(r['name_raw'])}::{off}"
+                    if sm.get(key).get("sent"):
+                        continue
+                    alerts.append({
+                        "title": f"⏰ 신청 {self._fmt_offset(off)} 전 — {r['name_raw'][:24]}",
+                        "message": self._reminder_message(r, off, start),
+                        "priority": "urgent" if off <= 10 else "high",
+                    })
+                    sm.save(key, {"sent": True, "at": now.isoformat(timespec="seconds")})
+        return alerts
+
+    @staticmethod
+    def _parse_start_dt(period):
+        if not period:
+            return None
+        m = re.search(r"(\d{4})\.(\d{1,2})\.(\d{1,2})\s+(\d{1,2}):(\d{2})", period)
+        if not m:
+            return None
+        from datetime import datetime
+        y, mo, d, h, mi = map(int, m.groups())
+        try:
+            return datetime(y, mo, d, h, mi)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _fmt_offset(minutes: int) -> str:
+        if minutes % 1440 == 0:
+            return f"{minutes // 1440}일"
+        if minutes % 60 == 0:
+            return f"{minutes // 60}시간"
+        return f"{minutes}분"
+
+    def _reminder_message(self, r: dict, off: int, start) -> str:
+        return (
+            f"📚 {r['name_raw'][:50]}\n"
+            f"신청 시작: {start.strftime('%m/%d %H:%M')} ({self._fmt_offset(off)} 후)\n"
+            f"신청기간: {r.get('period') or '?'}\n"
+            f"모집정원: {r['current']}/{r['total']}  상태: {r.get('status') or '?'}\n"
+            f"👉 시작 시간에 바로 신청 준비!"
+        )
+
+    def _new_prog_message(self, r: dict) -> str:
+        return (
+            f"📚 {r['name_raw'][:50]}\n"
+            f"신청기간: {r.get('period') or '?'}\n"
+            f"모집정원: {r['current']}/{r['total']}  상태: {r.get('status') or '?'}\n"
+            f"👉 힙독클럽에 새 프로그램이 올라왔어요!"
+        )
 
     def format_alert(self, items: list[dict]) -> Optional[str]:
         hot = [i for i in items if i.get("alert")]

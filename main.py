@@ -85,6 +85,16 @@ def run_check(config: dict) -> int:
         items = result.get("items", [])
         click_url = result.get("click_url", "")
 
+        # 사전 리마인더 / 신규 프로그램 알림 (변경감지와 무관하게 즉시 발송, 크롤러가 중복 방지)
+        for ea in result.get("extra_alerts", []) or []:
+            notifier.send(
+                title=ea.get("title", name),
+                message=ea.get("message", ""),
+                priority=Priority.from_str(str(ea.get("priority", "high"))),
+                click_url=click_url or None,
+            )
+            changes += 1
+
         changed = state_mgr.has_changed(name, raw) if raw else False
         state_mgr.update_hash(name, raw)
 
