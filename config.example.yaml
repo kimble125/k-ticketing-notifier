@@ -96,7 +96,7 @@ watchers:
 
   # ============================================================
   #  서울야외도서관 힙독클럽 — 신규 (v4 주력)
-  #  ⚠️ HTML 구조 파악 후 실제 셀렉터 보강 필요 (새 채팅에서)
+  #  ✅ 실제 페이지 분석 완료: '모집 정원 현재/총' 숫자 기반 빈자리 감지
   # ============================================================
   - name: "서울야외도서관 힙독클럽 5개 프로그램"
     type: "seoul_outdoor_library"
@@ -105,11 +105,18 @@ watchers:
     cooldown_minutes: 10
     settings:
       target_url: "https://seouloutdoorlibrary.kr/user/program/selectPageListProgram.do?area_id=hipdok&flag=program_list"
-      detection_mode: "status_change"            # status_change 또는 count_change
-      use_playwright: true                         # SPA 가능성 ↑ 일단 true. SSR 확인되면 false 로
+      use_playwright: true        # 이 페이지는 JS 렌더링 → Playwright 필요 (requests 로는 빈 본문)
       headless: true
-      full_keyword: "정원 마감"
-      open_keyword: "신청중"
+      max_pages: 10               # 페이지네이션(1·2·3·4…) 자동 순회 상한
+      # ── 두 가지 상태 신호를 함께 감시 ────────────────────────────
+      #  (A) 상태 배지 : 정원 마감 / 신청 예정 / 신청중 / 대기 신청 중 / 신청 마감 / 종료
+      #  (B) 모집 정원 숫자 : 현재/총  (예: 200/200=마감, 199/200=취소표 1자리)
+      #  한글 라벨(행사 일시/신청 기간/모집 정원) 순서로 파싱 → 사이트 개편(클래스명 변경)에 강함.
+      alert_triggers: ["status_open", "spot_freed"]   # 기본=둘 다(가장 안전)
+      #   status_open : 상태가 '신청중/대기 신청 중'으로 전이 (의미적으로 정확)
+      #   spot_freed  : 현재<총 (취소표/빈자리; 배지가 늦어도 잡음. 종료·신청마감·신청예정은 제외)
+      #   ※ 하나만 원하면  ["status_open"]  또는  ["spot_freed"]  로 변경
+      open_statuses: ["신청중", "대기 신청 중"]        # '신청 가능'으로 간주할 상태
       targets:
         - name: "노마드리딩 ③ : 커피향 바다독서 in 강릉"
         - name: "[리딩몹] 최애책 재독단 #4. 소장하고 싶은 그 책"

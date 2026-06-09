@@ -176,7 +176,9 @@ def main() -> None:
     args = parser.parse_args()
 
     config = load_config(args.config)
-    setup_logging(config.get("advanced", {}).get("log_level", "INFO"))
+    # LOG_LEVEL 환경변수가 있으면 우선 (GitHub Actions 의 debug 입력에서 사용)
+    import os as _os
+    setup_logging(_os.environ.get("LOG_LEVEL") or config.get("advanced", {}).get("log_level", "INFO"))
 
     if args.test_alert:
         run_test_alert(config)
